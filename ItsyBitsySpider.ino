@@ -1,14 +1,11 @@
+//Importing necessary libraries
 #include <SPI.h>
 #include <SD.h>
-
-// IMPORTANT: Adafruit_TFTLCD LIBRARY MUST BE SPECIFICALLY
-// CONFIGURED FOR EITHER THE TFT SHIELD OR THE BREAKOUT BOARD.
-// SEE RELEVANT COMMENTS IN Adafruit_TFTLCD.h FOR SETUP.
-
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_TFTLCD.h> // Hardware-specific library
 #include <time.h> 
 #include <stdlib.h>
+//Initializing variables
 int difficulty = 1;
 boolean LLOn = false;
 boolean LROn = false;
@@ -22,9 +19,7 @@ int lives = 1000;
 int previousTime;
 double lastUpdateLeft;
 double lastUpdateRight;
-// The control pins for the LCD can be assigned to any digital or
-// analog pins...but we'll use the analog pins as this allows us to
-// double up the pins with the touch screen (see the TFT paint example).
+
 #define LCD_CS A3 // Chip Select goes to Analog 3
 #define LCD_CD A2 // Command/Data goes to Analog 2
 #define LCD_WR A1 // LCD Write goes to Analog 1
@@ -32,20 +27,7 @@ double lastUpdateRight;
 
 #define LCD_RESET A4 // Can alternately just connect to Arduino's reset pin
 
-// When using the BREAKOUT BOARD only, use these 8 data lines     to the LCD:
-// For the Arduino Uno, Duemilanove, Diecimila, etc.:
-//   D0 connects to digital pin 8  (Notice these are
-//   D1 connects to digital pin 9   NOT in order!)
-//   D2 connects to digital pin 2
-//   D3 connects to digital pin 3
-//   D4 connects to digital pin 4
-//   D5 connects to digital pin 5
-//   D6 connects to digital pin 6
-//   D7 connects to digital pin 7
-// For the Arduino Mega, use digital pins 22 through 29
-// (on the 2-row header at the end of the board).
-
-// Assign human-readable names to some common 16-bit color values:
+// Assigning human-readable names to some common 16-bit color values:
 #define  BLACK   0x0000
 #define BLUE    0x001F
 #define RED     0xF800
@@ -56,6 +38,7 @@ double lastUpdateRight;
 #define YELLOW  0xFFE0
 #define WHITE   0xFFFF
 
+//Initializing additional variables
 boolean isSpikeLL = false;
 boolean isSpikeLR = false;
 boolean isSpikeRL = false;
@@ -65,32 +48,29 @@ boolean isRClear = true;
 byte spikeLHeight = 0;
 byte spikeRHeight = 0; 
 
+//Creating TFTLCD screen object
 Adafruit_TFTLCD tft(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
-// If using the shield, all control and data lines are fixed, and
-// a simpler declaration can optionally be used:
-// Adafruit_TFTLCD tft;
 
+//Boolean values for current spider locations
 boolean isSpiderRL = true;
 boolean isSpiderLL = true;
 boolean isSpiderRR = false;
 boolean isSpiderLR = false;  
 
+//Setup function - runs once to begin the game
+//Displays starting screen and enables user
+//to choose difficulty level using buttons
 void setup(void) {
+  //Resetting the screen from previous game
   tft.reset();
   uint16_t identifier = tft.readID();
   tft.begin(identifier);
-  //SD.begin(10);
   Serial.begin(9600);
   tft.setRotation(2);
-  //Serial.println("TFT LCD test"));
-  /*
-  Serial.print(F("Initializing SD card..."));
-  if (!SD.begin(10)) {
-    Serial.println(F("failed!"));
-    return;
-  }
-  Serial.println(F("OK!"));
-  */
+  
+  //Displaying title screen until a button is pressed
+  //and when the button is pressed, changing the 
+  //difficulty accordingly
   testText();
   while(digitalRead(11)==HIGH && digitalRead(12)==HIGH){
     delay(50);
@@ -99,10 +79,13 @@ void setup(void) {
     difficulty=2;
   }
 }
-
+//Loop method - runs repeatedly until game is over
 void loop(void) {
+  //Setting initial score and time to 0
   scr = 0;
   totTime = 0;
+  //Initializing the player's lives based on 
+  //difficulty setting
   if (difficulty==1){
     lives = 1000;
     scr = 0;
@@ -113,62 +96,88 @@ void loop(void) {
   }
   tft.setRotation(0);
   int refreshInterval = 500;
+  //Displaying background on TFTLCD
   setBackground(tft);
+  //Loop to keep running while game is in easy
+  //mode
   while(gameOver == false && difficulty==1){
     unsigned long now = millis();
-    //SD.begin(10);
-    //bmpDraw("ArduinoFiredSpike.bmp",0,0,tft);
+    //Updating score once every 0.5 seconds
     if (now%500==00){
       updateScore(tft);
     }
+    //Deducting lives every 20ms that a spider
+    //is in a water stream
     if (now%20==00){
       deductLives();
     }
+    //Creating new streams of water every 3
+    //seconds (in random locations)
     if (now%3000==0){
       startStream();
     }
+    //Refreshing screen every 0.5 seconds
     if ((now - lastRefreshTime) > refreshInterval)
     {   
         lastRefreshTime = now;
     }
+    //Updating spider positions
     if (digitalRead(11)==LOW || digitalRead(12)==LOW){
       if (now - lastUpdateLeft > 1000 || now - lastUpdateRight > 1000){
         updateSpiders(now);
       }
     }
+    //Updating total time elapsed
     totTime = now/10;
   }
+  //Loop to keep game running while game is in
+  //hard mode
   while(gameOver==false && difficulty==2){
     unsigned long now = millis();
-    //SD.begin(10);
-    //bmpDraw("ArduinoFiredSpike.bmp",0,0,tft);
+    //Updating score every 500ms
     if (now%500==00){
       updateScore(tft);
     }
+    //Deducting lives every 20ms if spider
+    //is currently in a water stream
     if (now%20==00){
       deductLives();
     }
+    //Creating new streams of water every
+    //3 seconds (in random locations)
     if (now%3000==0){
       startStream();
     }
+    //Refreshing screen every 500ms
     if ((now - lastRefreshTime) > refreshInterval)
     {   
         lastRefreshTime = now;
     }
+    //Updating spider locations
     if (digitalRead(11)==LOW || digitalRead(12)==LOW){
       if (now - lastUpdateLeft > 1000 || now - lastUpdateRight > 1000){
         updateSpiders(now);
       }
     }
+    //Updating total elapsed time variable
     totTime = now/10;
   }
+  //Displaying game over screen after
+  //user has lost
   gameText();
+  //Continuing to display game over screen
+  //until a button is pressed, indicating 
+  //that the player wishes to play again
   while (digitalRead(11)==HIGH && digitalRead(12)==HIGH){
     delay(50);
   }
+  //Setting game over variable to false
+  //after player chooses to play again
   gameOver = false;
 }
 
+//Method to create streams of 
+//water every 3s
 void startStream(){
   if (LLOn == true){
     dryLL();
@@ -206,6 +215,9 @@ void startStream(){
   }
 }
 
+//Method to check if spider is 
+//currently in a stream of water;
+//if so, lives will be deducted.
 boolean checkSame(){
   boolean isSame = false;
   if (LLOn==true && isSpiderLL==true){
@@ -223,6 +235,8 @@ boolean checkSame(){
   return (isSame);
 }
 
+//Method to update spider locations if
+//buttons are pressed
 void updateSpiders (unsigned long now){
   if(digitalRead(11) == LOW){
       switchSpiderRight();
@@ -234,6 +248,8 @@ void updateSpiders (unsigned long now){
   }
 }
 
+//Method to deduct lives if spider is
+//in a stream of water
 void deductLives(){
   if(checkSame()==true){
     lives--;
@@ -243,6 +259,7 @@ void deductLives(){
   }
 }
 
+//Method to update score as time passes
 void updateScore(Adafruit_TFTLCD tft){
   tft.setRotation(2);
   scr = totTime/100 - 5;
@@ -256,17 +273,10 @@ void updateScore(Adafruit_TFTLCD tft){
   }
 
   tft.setRotation(0);
-  /*
-  tft.setCursor(220,20);
-  tft.setTextSize(2);
-  tft.setTextColor(MAGENTA);
-  tft.println(previousTime);
-  tft.setTextColor(BLACK);
-  tft.println(totTime/100);
-  previousTime = totTime/100;
-  */
 }
 
+//Method to set the background colors
+//properly
 void setBackground(Adafruit_TFTLCD tft){
   unsigned long start; 
   start = micros(); 
@@ -287,9 +297,10 @@ void setBackground(Adafruit_TFTLCD tft){
 
   drawSpiderLL(tft);
   drawSpiderRR(tft);
-  //return micros() - start;
 }
 
+//Method to draw a spider using 
+//individual lines and shapes
 void drawSpider(int xPos, Adafruit_TFTLCD tft)
 {
   tft.setCursor(0, 0);
@@ -358,6 +369,8 @@ void drawSpider(int xPos, Adafruit_TFTLCD tft)
   tft.drawLine(leg8xStart, leg8yStart, leg8xEnd, leg8yEnd, BLACK); 
 }
 
+//Method to draw a magenta spider, based
+//on background colors
 void drawMAGENTASpider(int xPos, Adafruit_TFTLCD tft)
 {
   tft.setCursor(0, 0);
@@ -426,6 +439,8 @@ void drawMAGENTASpider(int xPos, Adafruit_TFTLCD tft)
   tft.drawLine(leg8xStart, leg8yStart, leg8xEnd, leg8yEnd, MAGENTA); 
 }
 
+//Method to draw a spider on the leftmost
+//water spout
 void drawSpiderLL(Adafruit_TFTLCD tft)
 {
   drawSpider(100, tft);
@@ -433,6 +448,8 @@ void drawSpiderLL(Adafruit_TFTLCD tft)
   isSpiderLR = false;
 }
 
+//Method to draw a spider on the water
+//spout second from the left
 void drawSpiderLR(Adafruit_TFTLCD tft)
 {
   drawSpider(140, tft);
@@ -440,6 +457,8 @@ void drawSpiderLR(Adafruit_TFTLCD tft)
   isSpiderLR = true; 
 }
 
+//Method to draw a spider on the water
+//spout second from the right
 void drawSpiderRL(Adafruit_TFTLCD tft)
 {
   tft.setCursor(0, 0);
@@ -448,6 +467,8 @@ void drawSpiderRL(Adafruit_TFTLCD tft)
   isSpiderRR = false;
 }
 
+//Method to draw a spider on the rightmost
+//water spout
 void drawSpiderRR(Adafruit_TFTLCD tft)
 {
   tft.setCursor(0, 0);
@@ -456,6 +477,8 @@ void drawSpiderRR(Adafruit_TFTLCD tft)
   isSpiderRR = true;
 }
 
+//Method to draw a magenta spider in the 
+//leftmost water spout
 void drawSpiderMAGENTALL(Adafruit_TFTLCD tft)
 {
   drawMAGENTASpider(100, tft);
@@ -463,6 +486,8 @@ void drawSpiderMAGENTALL(Adafruit_TFTLCD tft)
   isSpiderLR = true;
 }
 
+//Method to draw a magenta spider in the 
+//water spout second from the left
 void drawSpiderMAGENTALR(Adafruit_TFTLCD tft)
 {
   drawMAGENTASpider(140, tft); 
@@ -470,6 +495,8 @@ void drawSpiderMAGENTALR(Adafruit_TFTLCD tft)
   isSpiderLR = false;
 }
 
+//Method to draw a magenta spider in the
+//water spout second from the right
 void drawSpiderMAGENTARL(Adafruit_TFTLCD tft)
 {
   drawMAGENTASpider(180, tft);
@@ -477,6 +504,8 @@ void drawSpiderMAGENTARL(Adafruit_TFTLCD tft)
   isSpiderRR = true;
 }
 
+//Method to draw a magenta spider in the 
+//rightmost water spout
 void drawSpiderMAGENTARR(Adafruit_TFTLCD tft)
 {
   drawMAGENTASpider(220, tft);
@@ -484,6 +513,8 @@ void drawSpiderMAGENTARR(Adafruit_TFTLCD tft)
   isSpiderRR = false;
 }
 
+//Method to switch the position of the
+//spider on the right half of the screen
 void switchSpiderRight()
 {
   if(isSpiderRL == true)
@@ -502,6 +533,8 @@ void switchSpiderRight()
   }
 }
 
+//Method to switch the position of 
+//the spider on the left half of the screen
 void switchSpiderLeft()
 {
   if(isSpiderLL == true)
@@ -520,6 +553,7 @@ void switchSpiderLeft()
   }
 }
 
+//Method to display the game over screen
 unsigned long gameText() {
   tft.setRotation(2);
   tft.fillScreen(RED);
@@ -543,6 +577,7 @@ unsigned long gameText() {
   scr = 0;
 }
 
+//Method to display the starting screen
 unsigned long testText() {
   tft.fillScreen(BLACK);
   unsigned long start = micros();
@@ -574,7 +609,8 @@ unsigned long testText() {
   return micros() - start;
 }
 
-
+//Additional variables for use with 
+//coordinates
 int xLL = 80;
 int xLMiddle = 120; 
 int xCenter = 160;
@@ -583,56 +619,63 @@ int xRR = 240;
 
 int yBase = 480;
  
+//Method to wet the leftmost rectangle
 void wetLL()
 {
   tft.fillRect(80, 0, 40, 480, CYAN);
   tft.drawRect(80, 0, 40, 480, CYAN);
 }
 
+//Method to wet the rectangle second
+//from the left
 void wetLR()
 {
   tft.fillRect(120, 0, 40, 480, CYAN);
   tft.drawRect(120, 0, 40, 480, CYAN);
 }
 
+//Method to wet the rectangle second
+//from the right
 void wetRL()
 {
   tft.fillRect(160, 0, 40, 480, CYAN);
   tft.drawRect(160, 0, 40, 480, CYAN);
 }
 
+//Method to wet the rightmost rectangle
 void wetRR()
 {
   tft.fillRect(200, 0, 40, 480, CYAN);
   tft.drawRect(200, 0, 40, 480, CYAN);
 }
 
+//Method to dry the leftmost rectangle
 void dryLL()
 {
   tft.fillRect(80, 0, 40, 480, MAGENTA);
   tft.drawRect(80, 0, 40, 480, MAGENTA);
 }
 
+//Method to dry the rectangle second
+//from the left
 void dryLR()
 {
   tft.fillRect(120, 0, 40, 480, MAGENTA);
   tft.drawRect(120, 0, 40, 480, MAGENTA);
 }
 
+//Method to dry the rectangle second 
+//from the right
 void dryRL()
 {
   tft.fillRect(160, 0, 40, 480, MAGENTA);
   tft.drawRect(160, 0, 40, 480, MAGENTA);
 }
 
+//Method to dry the rightmost rectangle
 void dryRR()
 {
   tft.fillRect(200, 0, 40, 480, MAGENTA);
   tft.drawRect(200, 0, 40, 480, MAGENTA);
 }
 
-void updateSpikes()
-{
-   
-}
-   
